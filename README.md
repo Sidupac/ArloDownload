@@ -3,6 +3,8 @@ ArloDownload for WINDOWS
 Automatically download new video recordings from Arlo to local folders or Dropbox.  (Dropbox function not tested on Windows)
 Optionally concatenate videos that are close in time. If the concat fails then the original video will still be downloaded
 
+Additionally, there is now an autorun batch script that allows you to schedule a task and record a log of events
+
 Video files are backed up under the following pathname:
 
       <rootdir>/<camera>/YYYY-MM-DD/HH:MM:SS+<duration>s.mp4
