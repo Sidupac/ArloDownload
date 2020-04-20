@@ -2,22 +2,30 @@
 #
 # ArloDownload - A video backup utility for the Netgear Arlo System
 #
-# Version 3.0
+# Version 3.1  > converted to windows
 #
 # Contributors:
 #  Janick Bergeron <janick@bergeron.com>
 #  Preston Lee <zettaiyukai@gmail.com>
 #  Tobias Himstedt <himstedt@gmail.com>
-#
-# Requirements:
-#  Python 3
-#  Dropbox Python SDK
-#
-# This script is open-source; please use and distribute as you wish.
-# There are no warranties; please use at your own risk.
-#
-# Master GIT repository: git@github.com:janick/ArloDownload.git
-#
+
+# Edited and converted to Windows by:
+#  James (Sidupac) Reynolds <sidupac@gmail.com> April 2020
+
+
+#https://www.python.org/ftp/python/3.8.2/python-3.8.2-amd64.exe
+# Select to Install on PATH > Custom Install > next > Install for All Users
+# Then run install.bat to get additional modules, and install ffmpeg
+# # install.bat contents:
+# # @echo off
+# # @setlocal enableextensions
+# # @cd /d "%~dp0"
+# # cls
+# # python -m pip install dropbox
+# # python -m pip install psutil
+# # python -m pip install requests
+# # copy /y "%~dp0\ffmpeg.exe" "C:\windows\ffmpeg.exe"
+# # pause
 
 import argparse
 import configparser
@@ -39,15 +47,16 @@ today = datetime.date.today()
 # Parse command-line options
 parser = argparse.ArgumentParser()
 # Make the debug mode default to avoid clobberring a running install
-parser.add_argument('-X', action='store_const', const=0, dest='debug', default=1, help='debug mode')
+parser.add_argument('-X', action='store_const', const=0, dest='debug', default=0, help='debug mode')
 parser.add_argument('-i', action='store_const', const=1, dest='init',  default=0, help='Initialize the pickle file')
 args = parser.parse_args()
 
-
 config = configparser.ConfigParser()
-config.read('/etc/systemd/arlo.conf')
+config.read(os.path.dirname(os.path.abspath(__file__))+'\\arlo.conf')
 
 rootdir = config['Default']['rootdir']
+alreadydownloaded = config['verbose']['alreadydownloaded']
+
 # In debug mode, do not interfere with the regular data files
 if args.debug:
     rootdir = rootdir + ".debug"
@@ -164,11 +173,12 @@ class arlo_helper:
         camera = str(self.cameras[item['deviceId']])
         month  = str(datetime.datetime.fromtimestamp(self.getTimestampInSecs(item)).strftime('%Y-%m'))
         date   = str(datetime.datetime.fromtimestamp(self.getTimestampInSecs(item)).strftime('%Y-%m-%d'))
-        return os.path.join(month, date, camera)
+        #return os.path.join(month, date, camera)
+        return os.path.join(camera, date)
 
     # Return the output file name corresponding to an Arlo video item
     def getOutputFile(self, item):
-        time = str(datetime.datetime.fromtimestamp(self.getTimestampInSecs(item)).strftime('%H:%M:%S'))
+        time = str(datetime.datetime.fromtimestamp(self.getTimestampInSecs(item)).strftime('%H.%M.%S'))
         secs = item['mediaDurationSecond']
         return time + "+" + str(secs) + "s.mp4"
 
@@ -210,6 +220,7 @@ class arlo_helper:
         itemCount = 0
         nItems = len(library)
         lastConcat = 0
+        conresult=0
         for idx, item in enumerate(library):
             url = item['presignedContentUrl']
             todir = self.getOutputDir(item)
@@ -221,12 +232,13 @@ class arlo_helper:
                 saved[tag] = today
 
             if not args.debug and tag in saved:
-                print("We already have processed " +  todir + "/" + tofile + "! Skipping download.")
+                if alreadydownloaded != 0 and alreadydownloaded != "0":
+                    print("We already have processed " +  todir + "\\" + tofile + "! Skipping download.")
 
                 # If the video is too old, add it to the list to delete
                 # (this way, we'll only delete videos we have previously saved)
                 if self.getTimestampInSecs(item) < deleteBefore:
-                    print("Will delete " +  todir + "/" + tofile + " from my.arlo.com.")
+                    print("Will delete " +  todir + "\\" + tofile + " from my.arlo.com.")
                     deleteItems.append(item)
 
             else:
@@ -248,14 +260,17 @@ class arlo_helper:
 
                     # If we found more than one video...
                     if startIdx-1 > idx:
-                        self.concatenate(library[idx:startIdx])
+                        conresult=self.concatenate(library[idx:startIdx])
                         lastConcat = startIdx - 1
 
-                # Save the video unless it was saved as part of the concatenation
-                itemCount = itemCount + 1
-                response = self.session.get(url, stream=True)
-                self.backend.backup(response.raw, todir, tofile)
-                del response
+                if idx > lastConcat or conresult ==0 :
+                    # Save the video unless it was saved as part of the concatenation
+                    itemCount = itemCount + 1
+                    response = self.session.get(url, stream=True)
+                    self.backend.backup(response.raw, todir, tofile)
+                    del response
+                #else:
+                    #print("###  debug:  Skipping Download of concat: " + tofile)
 
                 saved[tag] = today
                     
@@ -292,24 +307,27 @@ class arlo_helper:
         # How long does the concatenated video cover?
         # Remember, videos are in reverse order (most recent first)
         totalSecs = self.getTimestampInSecs(videos[0]) - self.getTimestampInSecs(videos[-1]) + int(videos[0]['mediaDurationSecond'])
-        time = str(datetime.datetime.fromtimestamp(self.getTimestampInSecs(videos[-1])).strftime('%H:%M:%S'))
+        time = str(datetime.datetime.fromtimestamp(self.getTimestampInSecs(videos[-1])).strftime('%H.%M.%S'))
         outfile = time + "+" + str(totalSecs) + "s.mp4"
 
         # If concatenation fails, oh well....
         try:
             # First, convert the MP4 into something that can be concatenated
             for mp4 in (flist):
-                os.system("cd " + workdir + "; ffmpeg -i " + mp4 + " -c copy -bsf:v h264_mp4toannexb -f mpegts " + mp4 + ".ts")
-                
+                if os.path.exists(workdir+"\\"+mp4):
+                    os.system("echo file '"+workdir+"\\"+mp4+"'"+">>\""+workdir+"\list.txt\"")
+
             # Concatenate using ffmpeg...
-            os.system("cd " + workdir + "; ffmpeg -i 'concat:" + '.ts|'.join(flist)+".ts' -c copy -bsf:a aac_adtstoasc concat.mp4")
-            
+            os.system("ffmpeg -safe 0 -f concat -i \""+workdir+"\list.txt\" -c copy \""+workdir+"\concat.mp4\"")
+
             # And finally, upload!
-            f = open(workdir+"/concat.mp4", "rb")
+            f = open(workdir+"\\concat.mp4", "rb")
             self.backend.backup(f, self.getOutputDir(videos[-1]), outfile)
             f.close()
+            return 1
         except:
-            print("Something went wrong during concatenation...")
+            print("Something went wrong during concatenation... downloading the original segments")
+            return 0
             
     def cleanup(self):
         # Remove the entries in the "saved" DB for files that are no longer available on the arlo server
@@ -335,6 +353,13 @@ for camera, videos in thisHelper.cameraLibs.items():
 # Save everything we have done so far...
 pickle.dump(saved, open(dbname, "wb"))
 
+#tidy up..
+dirname = "ffmpeg.work";
+workdir = os.path.join(rootdir, dirname);
+if (os.path.exists(workdir)):
+    shutil.rmtree(workdir)
+            
+            
 print('Done!')
 
 os.unlink(lock)
