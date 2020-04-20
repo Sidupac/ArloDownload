@@ -23,7 +23,7 @@ where
 Originally developped by Tobias Himstedt <himstedt@gmail.com>
 Updated by Preston Lee <zettaiyukai@gmail.com>, Janick Bergeron <janick@bergeron.com>
 
-Modified and adapted for Windows by James (Sid) Reynolds <Sidupac@gmail.com>
+Modified and adapted for Windows by James (Sid) Reynolds <sidupac@gmail.com>
 
 How to install:
     
