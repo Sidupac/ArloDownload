@@ -1,8 +1,9 @@
-#!/usr/bin/python3
 #
 # ArloDownload - A video backup utility for the Netgear Arlo System
+# THIS DOESN'T WORK WITH 2FA ENABLED!
 #
-# Version 3.1  > converted to windows
+#
+# Version 3.1w  > converted to windows
 #
 # Contributors:
 #  Janick Bergeron <janick@bergeron.com>
@@ -191,11 +192,18 @@ class arlo_helper:
     def login(self):
         response = self.session.post(self.loginUrl, data=json.dumps(self.loginData), headers=self.headers )
         jsonResponseData = response.json()['data']
-        print("Arlo login!")
-        self.token = jsonResponseData['token']
-        self.deviceID = jsonResponseData['serialNumber']
-        self.userID = jsonResponseData['userId']
-        self.headers['Authorization'] = self.token
+        
+
+        if (jsonResponseData.get('error')):
+            print("Error connecting to Python, received response was:")
+            print("  "+jsonResponseData['reason'])
+            raise SystemExit(0)
+        else:
+            print("Arlo login!")
+            self.token = jsonResponseData['token']
+            self.deviceID = jsonResponseData['serialNumber']
+            self.userID = jsonResponseData['userId']
+            self.headers['Authorization'] = self.token
 
     def readLibrary(self):
         now = today.strftime("%Y%m%d")
