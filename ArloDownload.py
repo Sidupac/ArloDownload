@@ -195,7 +195,7 @@ class arlo_helper:
         
 
         if (jsonResponseData.get('error')):
-            print("Error connecting to Python, received response was:")
+            print("Error connecting to Arlo, received response was:")
             print("  "+jsonResponseData['reason'])
             raise SystemExit(0)
         else:
